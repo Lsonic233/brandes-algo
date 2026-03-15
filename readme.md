@@ -1,0 +1,3 @@
+- https://snap.stanford.edu/data/email-Enron.html
+- https://snap.stanford.edu/data/as-Skitter.html
+- https://snap.stanford.edu/data/wiki-Vote.html
