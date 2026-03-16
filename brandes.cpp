@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <time.h>
 
 using namespace std;
 
@@ -92,8 +93,11 @@ public:
     // A quick helper function to print the results
     void printCentrality() const {
         cout << "Betweenness Centrality Scores:" << endl;
-        for (int i = 0; i < vertices; i++) {
-            cout << "Vertex " << i << ": " << centrality[i] << endl;
+        vector<double> sorted_centrality {centrality.begin(), centrality.end()};
+        sort(sorted_centrality.rbegin(), sorted_centrality.rend());
+        int limit = min(20, vertices);
+        for (int i = 0; i < limit; i++) {
+            cout << "Vertex " << i << ": " << sorted_centrality[i] << endl;
         }
     }
 };
@@ -137,9 +141,14 @@ int main(int argc, char* argv[]) {
         filename = argv[1];
 
     Centrality* graph = loadGraph(filename);
-      
+    
+    clock_t start = clock();
     graph->calculateBrandes();
+    clock_t end = clock();
+    double elapsed_secs = double(end - start) / CLOCKS_PER_SEC;
+    
     graph->printCentrality();
+    cout << "Elapsed time: " << elapsed_secs << " seconds" << endl;
 
     delete graph;
 
