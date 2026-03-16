@@ -2,6 +2,7 @@
 #include <vector>
 #include <stack>
 #include <queue>
+#include <omp.h>
 
 using namespace std;
 
@@ -22,61 +23,75 @@ public:
     }
 
     void calculateBrandes() {
-        // OPTIMIZATION: Declare these outside the loop to avoid reallocating 
-        // memory for every single source vertex.
-        vector<vector<int>> P(vertices);
-        vector<double> sigma(vertices); // Using double prevents integer division issues and overflow
-        vector<int> d(vertices);
-        vector<double> delta(vertices);
-        queue<int> Q;
-        stack<int> S;
-
-        for (int s = 0; s < vertices; s++) {
-            // 1. Reset the intermediate data structures for the new source vertex
-            for (int i = 0; i < vertices; i++) {
-                P[i].clear();
-                sigma[i] = 0.0;
-                d[i] = -1;
-                delta[i] = 0.0;
-            }
+        // Parallel region
+        #pragma omp parallel
+        {
+            // Thread-private data structures initialized once per thread
+            vector<vector<int>> P(vertices);
+            vector<double> sigma(vertices);
+            vector<int> d(vertices);
+            vector<double> delta(vertices);
+            queue<int> Q;
+            stack<int> S;
             
-            sigma[s] = 1.0;
-            d[s] = 0; // FIXED: Changed from sigma[s] = 0 to d[s] = 0
-            Q.push(s);
+            // Thread-local accumulation buffer to avoid race conditions
+            vector<double> local_centrality(vertices, 0.0);
 
-            // 2. BFS to find shortest paths
-            while (!Q.empty()) {
-                int v = Q.front();
-                Q.pop();
-                S.push(v);
+            #pragma omp for schedule(dynamic)
+            for (int s = 0; s < vertices; s++) {
+                // 1. Reset the intermediate data structures for the new source vertex
+                for (int i = 0; i < vertices; i++) {
+                    P[i].clear();
+                    sigma[i] = 0.0;
+                    d[i] = -1;
+                    delta[i] = 0.0;
+                }
+                
+                sigma[s] = 1.0;
+                d[s] = 0;
+                Q.push(s);
 
-                for (int w : adj[v]) {
-                    // w found for the first time?
-                    if (d[w] < 0) {
-                        Q.push(w);
-                        d[w] = d[v] + 1;
+                // 2. BFS to find shortest paths
+                while (!Q.empty()) {
+                    int v = Q.front();
+                    Q.pop();
+                    S.push(v);
+
+                    for (int w : adj[v]) {
+                        // w found for the first time?
+                        if (d[w] < 0) {
+                            Q.push(w);
+                            d[w] = d[v] + 1;
+                        }
+                        // shortest path to w via v?
+                        if (d[w] == d[v] + 1) {
+                            sigma[w] += sigma[v];
+                            P[w].push_back(v);
+                        }
                     }
-                    // shortest path to w via v?
-                    if (d[w] == d[v] + 1) {
-                        sigma[w] += sigma[v];
-                        P[w].push_back(v);
+                }
+
+                // 3. Dependency accumulation
+                while (!S.empty()) {
+                    int w = S.top();
+                    S.pop();
+                    for (int v : P[w]) {
+                        delta[v] += (sigma[v] / sigma[w]) * (1.0 + delta[w]);
                     }
+                    if (w != s) {
+                        local_centrality[w] += delta[w]; // Update local buffer
+                    }
+                }
+            } // End of for loop
+
+            // Reduce local_centrality to global centrality
+            #pragma omp critical
+            {
+                for(int i = 0; i < vertices; ++i) {
+                    centrality[i] += local_centrality[i];
                 }
             }
-
-            // 3. Dependency accumulation
-            while (!S.empty()) {
-                int w = S.top();
-                S.pop();
-                for (int v : P[w]) {
-                    // FIXED: sigma is now a double, so division is perfectly accurate
-                    delta[v] += (sigma[v] / sigma[w]) * (1.0 + delta[w]);
-                }
-                if (w != s) {
-                    centrality[w] += delta[w]; // Storing directly in the class member
-                }
-            }
-        }
+        } // End parallel region
 
         // 4. Undirected Graph Correction
         // In an undirected graph, the algorithm counts every shortest path twice 
