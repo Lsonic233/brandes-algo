@@ -3,6 +3,9 @@
 #include <stack>
 #include <queue>
 #include <omp.h>
+#include <fstream>
+#include <sstream>
+#include <algorithm>
 
 using namespace std;
 
@@ -104,25 +107,65 @@ public:
     // A quick helper function to print the results
     void printCentrality() const {
         cout << "Betweenness Centrality Scores:" << endl;
-        for (int i = 0; i < vertices; i++) {
-            cout << "Vertex " << i << ": " << centrality[i] << endl;
+        
+        vector<double> sorted_centrality {centrality.begin(), centrality.end()};
+        sort(sorted_centrality.rbegin(), sorted_centrality.rend());
+        int limit = min(20, vertices);
+        // bug: vertex index printed is wrong due to sorting, need to handle
+        for (int i = 0; i < limit; i++) {
+            cout << "Vertex " << i << ": " << sorted_centrality[i] << endl;
         }
     }
 };
 
-int main() {
-    // Example usage:
-    // Create a simple undirected graph with 5 vertices
-    Centrality graph(5);
+Centrality* loadGraph(const string& filename) {
+    ifstream file(filename);
+    if (!file.is_open()) {
+        cerr << "Error opening file " << filename << endl;
+        exit(1);
+    }
 
-    graph.addEdge(0, 1);
-    graph.addEdge(0, 2);
-    graph.addEdge(1, 2);
-    graph.addEdge(2, 3);
-    graph.addEdge(3, 4);
+    vector<pair<int, int>> edges;
+    int u, v;
+    int maxV = 0;
+    string line;
 
-    graph.calculateBrandes();
-    graph.printCentrality();
+    while (getline(file, line)) {
+        if (line.empty() || line[0] == '#') continue;
+
+        stringstream ss(line);
+        if (ss >> u >> v) {
+            edges.emplace_back(u, v);
+            maxV = max({u, v, maxV});
+        }
+        
+    }
+    int numVertices = maxV + 1;
+    cout << "Graph info: " << numVertices << " vertices, " << edges.size() << " edges\n";
+
+    Centrality* graph = new Centrality(numVertices);
+
+    for (const auto& edge: edges)
+        graph->addEdge(edge.first, edge.second);
+
+    return graph;
+}
+
+int main(int argc, char* argv[]) {
+    string filename = "./datasets/email-Enron.txt";
+    if (argc > 1)
+        filename = argv[1];
+
+    Centrality* graph = loadGraph(filename);
+    
+    double start = omp_get_wtime();    
+    graph->calculateBrandes();
+    double end = omp_get_wtime();
+    cout << "Calculation finished in " << (end - start) << " seconds." << endl;
+
+    graph->printCentrality();
+
+    delete graph;
 
     return 0;
 }

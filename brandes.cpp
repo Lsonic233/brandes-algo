@@ -2,6 +2,9 @@
 #include <vector>
 #include <stack>
 #include <queue>
+#include <fstream>
+#include <sstream>
+#include <algorithm>
 
 using namespace std;
 
@@ -95,19 +98,50 @@ public:
     }
 };
 
-int main() {
-    // Example usage:
-    // Create a simple undirected graph with 5 vertices
-    Centrality graph(5);
+Centrality* loadGraph(const string& filename) {
+    ifstream file(filename);
+    if (!file.is_open()) {
+        cerr << "Error opening file " << filename << endl;
+        exit(1);
+    }
 
-    graph.addEdge(0, 1);
-    graph.addEdge(0, 2);
-    graph.addEdge(1, 2);
-    graph.addEdge(2, 3);
-    graph.addEdge(3, 4);
+    vector<pair<int, int>> edges;
+    int u, v;
+    int maxV = 0;
+    string line;
 
-    graph.calculateBrandes();
-    graph.printCentrality();
+    while (getline(file, line)) {
+        if (line.empty() || line[0] == '#') continue;
+
+        stringstream ss(line);
+        if (ss >> u >> v) {
+            edges.emplace_back(u, v);
+            maxV = max({u, v, maxV});
+        }
+        
+    }
+    int numVertices = maxV + 1;
+    cout << "Graph info: " << numVertices << " vertices, " << edges.size() << " edges\n";
+
+    Centrality* graph = new Centrality(numVertices);
+
+    for (const auto& edge: edges)
+        graph->addEdge(edge.first, edge.second);
+
+    return graph;
+}
+
+int main(int argc, char* argv[]) {
+    string filename = "./datasets/email-Enron.txt"; 
+    if (argc > 1)
+        filename = argv[1];
+
+    Centrality* graph = loadGraph(filename);
+      
+    graph->calculateBrandes();
+    graph->printCentrality();
+
+    delete graph;
 
     return 0;
 }
