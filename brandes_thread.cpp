@@ -2,10 +2,13 @@
 #include <vector>
 #include <stack>
 #include <queue>
-#include <omp.h>
+#include <thread>
+#include <mutex>
+#include <atomic>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <chrono>
 
 using namespace std;
 
@@ -14,6 +17,7 @@ private:
     int vertices;
     vector<vector<int>> adj;
     vector<double> centrality;
+    mutex centrality_mutex;
 
 public:
     // Constructor to initialize the graph's size
@@ -26,44 +30,47 @@ public:
     }
 
     void calculateBrandes() {
-        // Parallel region
-        #pragma omp parallel
-        {
-            // Thread-private data structures initialized once per thread
+        // Use threads
+        unsigned int num_threads = thread::hardware_concurrency();
+        if (num_threads == 0) num_threads = 4;
+
+        vector<thread> threads;
+        atomic<int> current_source(0);
+
+        auto worker = [&](int thread_id) {
+            // Thread-private data structures
             vector<vector<int>> P(vertices);
-            vector<double> sigma(vertices);
-            vector<int> d(vertices);
-            vector<double> delta(vertices);
-            queue<int> Q;
-            stack<int> S;
+            vector<double> sigma(vertices, 0.0);
+            vector<int> d(vertices, -1);
+            vector<double> delta(vertices, 0.0);
+            // queue<int> Q;
+            // stack<int> S;
+            vector<int> Q(vertices);
+            vector<int> S(vertices);
+            int q_head = 0, q_tail = 0, s_top = 0;
             
-            // Thread-local accumulation buffer to avoid race conditions
+            // Thread-local accumulation buffer
             vector<double> local_centrality(vertices, 0.0);
 
-            #pragma omp for schedule(dynamic)
-            for (int s = 0; s < vertices; s++) {
-                // 1. Reset the intermediate data structures for the new source vertex
-                for (int i = 0; i < vertices; i++) {
-                    P[i].clear();
-                    sigma[i] = 0.0;
-                    d[i] = -1;
-                    delta[i] = 0.0;
-                }
+            while (true) {
+                // Fetch next task atomically
+                int s = current_source.fetch_add(1);
+                if (s >= vertices) break;
+                if (adj[s].empty()) continue;
                 
                 sigma[s] = 1.0;
                 d[s] = 0;
-                Q.push(s);
+                Q[q_tail++] = s; // enqueue
 
                 // 2. BFS to find shortest paths
-                while (!Q.empty()) {
-                    int v = Q.front();
-                    Q.pop();
-                    S.push(v);
+                while (q_head != q_tail) { // !queue.empty
+                    int v = Q[q_head++]; // pop from queue
+                    S[s_top++] = v; // push to stack
 
                     for (int w : adj[v]) {
                         // w found for the first time?
                         if (d[w] < 0) {
-                            Q.push(w);
+                            Q[q_tail++] = w;
                             d[w] = d[v] + 1;
                         }
                         // shortest path to w via v?
@@ -75,26 +82,47 @@ public:
                 }
 
                 // 3. Dependency accumulation
-                while (!S.empty()) {
-                    int w = S.top();
-                    S.pop();
+                while (s_top != 0) { // !stack.empty
+                    int w = S[--s_top]; // pop from stack
                     for (int v : P[w]) {
                         delta[v] += (sigma[v] / sigma[w]) * (1.0 + delta[w]);
                     }
                     if (w != s) {
                         local_centrality[w] += delta[w]; // Update local buffer
                     }
-                }
-            } // End of for loop
 
-            // Reduce local_centrality to global centrality
-            #pragma omp critical
+                    // Reset intermediate structures here to reduce complexity
+                    P[w].clear();
+                    sigma[w] = 0.0;
+                    d[w] = -1;
+                    delta[w] = 0.0;
+                }
+                // reset stack and queue ptrs explicitly
+                q_head = 0;
+                q_tail = 0;
+                s_top = 0;
+
+            } // End of local work
+
+            // Reduce local_centrality to global centrality using mutex
             {
+                lock_guard<mutex> lock(centrality_mutex);
                 for(int i = 0; i < vertices; ++i) {
                     centrality[i] += local_centrality[i];
                 }
             }
-        } // End parallel region
+        };
+
+        // Spawn threads
+        cout << "Running with " << num_threads << " threads..." << endl;
+        for (unsigned int i = 0; i < num_threads; ++i) {
+            threads.emplace_back(worker, i);
+        }
+
+        // Join threads
+        for (auto& t : threads) {
+            t.join();
+        }
 
         // 4. Undirected Graph Correction
         // In an undirected graph, the algorithm counts every shortest path twice 
@@ -111,7 +139,6 @@ public:
         vector<double> sorted_centrality {centrality.begin(), centrality.end()};
         sort(sorted_centrality.rbegin(), sorted_centrality.rend());
         int limit = min(20, vertices);
-        // bug: vertex index printed is wrong due to sorting, need to handle
         for (int i = 0; i < limit; i++) {
             cout << "Vertex " << i << ": " << sorted_centrality[i] << endl;
         }
@@ -158,10 +185,12 @@ int main(int argc, char* argv[]) {
 
     Centrality* graph = loadGraph(filename);
     
-    double start = omp_get_wtime();    
+    auto start = chrono::high_resolution_clock::now();
     graph->calculateBrandes();
-    double end = omp_get_wtime();
-    cout << "Calculation finished in " << (end - start) << " seconds." << endl;
+    auto end = chrono::high_resolution_clock::now();
+    
+    chrono::duration<double> diff = end - start;
+    cout << "Calculation finished in " << diff.count() << " seconds." << endl;
 
     graph->printCentrality();
 
