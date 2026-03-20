@@ -2,12 +2,15 @@
 #include <atomic>
 #include <chrono>
 #include <fstream>
+#include <sstream>
 #include <iostream>
 #include <mutex>
 #include <sys/resource.h>
 #include <thread>
 #include <utility>
 #include <vector>
+#include <stack>
+#include <queue>
 
 using namespace std;
 
@@ -43,11 +46,8 @@ class Centrality {
             vector<double> sigma(vertices, 0.0);
             vector<int> d(vertices, -1);
             vector<double> delta(vertices, 0.0);
-            // queue<int> Q;
-            // stack<int> S;
-            vector<int> Q(vertices);
-            vector<int> S(vertices);
-            int q_head = 0, q_tail = 0, s_top = 0;
+            queue<int> Q;
+            stack<int> S;
 
             // Thread-local accumulation buffer
             vector<double> local_centrality(vertices, 0.0);
@@ -62,17 +62,17 @@ class Centrality {
 
                 sigma[s] = 1.0;
                 d[s] = 0;
-                Q[q_tail++] = s; // enqueue
+                Q.push(s);
 
                 // 2. BFS to find shortest paths
-                while (q_head != q_tail) { // !queue.empty
-                    int v = Q[q_head++];   // pop from queue
-                    S[s_top++] = v;        // push to stack
+                while (!Q.empty()) { 
+                    int v = Q.front(); Q.pop();
+                    S.push(v);
 
                     for (int w : adj[v]) {
                         // w found for the first time?
                         if (d[w] < 0) {
-                            Q[q_tail++] = w;
+                            Q.push(w);
                             d[w] = d[v] + 1;
                         }
                         // shortest path to w via v?
@@ -84,8 +84,8 @@ class Centrality {
                 }
 
                 // 3. Dependency accumulation
-                while (s_top != 0) {    // !stack.empty
-                    int w = S[--s_top]; // pop from stack
+                while (!S.empty()) {
+                    int w = S.top(); S.pop();
                     for (int v : P[w]) {
                         delta[v] += (sigma[v] / sigma[w]) * (1.0 + delta[w]);
                     }
@@ -99,10 +99,6 @@ class Centrality {
                     d[w] = -1;
                     delta[w] = 0.0;
                 }
-                // reset stack and queue ptrs explicitly
-                q_head = 0;
-                q_tail = 0;
-                s_top = 0;
 
             } // End of local work
 
@@ -147,7 +143,7 @@ class Centrality {
 
         int limit = min(20, vertices);
         for (int i = 0; i < limit; i++) {
-            cout << "Vertex " << i << ": " << sorted_centrality[i].first << endl;
+            cout << "Vertex " << sorted_centrality[i].second << ": " << sorted_centrality[i].first << endl;
         }
     }
 };
