@@ -189,8 +189,8 @@ void display_memory_usage() {
     struct rusage usage;
     getrusage(RUSAGE_SELF, &usage);
 
-    cout << "Peak memory usage: " << usage.ru_maxrss / (1024 * 1024) << "MB" << endl; // for macos, unit is in bytes
-    // cout << "Peak memory usage: " << usage.ru_maxrss / 1024 << "MB" << endl; // for linux, unit is in bytes, uncomment this line
+    // cout << "Peak memory usage: " << usage.ru_maxrss / (1024 * 1024) << "MB" << endl; // for macos, unit is in bytes
+    cout << "Peak memory usage: " << usage.ru_maxrss / 1024 << "MB" << endl; // for linux, unit is in bytes, uncomment this line
 }
 
 int main(int argc, char* argv[]) {
