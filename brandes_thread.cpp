@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <mutex>
+#include <sys/resource.h>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -184,6 +185,14 @@ Centrality* loadGraph(const string& filename) {
     return graph;
 }
 
+void display_memory_usage() {
+    struct rusage usage;
+    getrusage(RUSAGE_SELF, &usage);
+
+    cout << "Peak memory usage: " << usage.ru_maxrss / (1024 * 1024) << "MB" << endl; // for macos, unit is in bytes
+    // cout << "Peak memory usage: " << usage.ru_maxrss / 1024 << "MB" << endl; // for linux, unit is in bytes, uncomment this line
+}
+
 int main(int argc, char* argv[]) {
     string filename = "./datasets/email-Enron.txt";
     if (argc > 1)
@@ -199,6 +208,7 @@ int main(int argc, char* argv[]) {
     cout << "Calculation finished in " << diff.count() << " seconds." << endl;
 
     graph->printCentrality();
+    display_memory_usage();
 
     delete graph;
 
