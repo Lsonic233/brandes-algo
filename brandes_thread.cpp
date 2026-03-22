@@ -11,6 +11,8 @@
 #include <vector>
 #include <stack>
 #include <queue>
+#include <set>
+#include <unordered_set>
 
 using namespace std;
 
@@ -155,7 +157,7 @@ Centrality* loadGraph(const string& filename) {
         exit(1);
     }
 
-    vector<pair<int, int>> edges;
+    set<pair<int, int>> unique_edges;
     int u, v;
     int maxV = 0;
     string line;
@@ -166,16 +168,18 @@ Centrality* loadGraph(const string& filename) {
 
         stringstream ss(line);
         if (ss >> u >> v) {
-            edges.emplace_back(u, v);
+            if (u == v) continue;
+            if (u > v) swap(u, v); // Normalize to ensure undirected uniqueness
+            unique_edges.insert({u, v});
             maxV = max({u, v, maxV});
         }
     }
     int numVertices = maxV + 1;
-    cout << "Graph info: " << numVertices << " vertices, " << edges.size() << " edges\n";
+    cout << "Graph info: " << numVertices << " vertices, " << unique_edges.size() << " unique edges\n";
 
     Centrality* graph = new Centrality(numVertices);
 
-    for (const auto& edge : edges)
+    for (const auto& edge : unique_edges)
         graph->addEdge(edge.first, edge.second);
 
     return graph;

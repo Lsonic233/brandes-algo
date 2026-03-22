@@ -1,0 +1,25 @@
+Graph info: 8298 vertices, 103689 edges
+Running with 8 threads...
+Calculation finished in 0.735394 seconds.
+Betweenness Centrality Scores:
+Vertex 2565: 1.63467e+06
+Vertex 11: 877073
+Vertex 457: 870049
+Vertex 4037: 719298
+Vertex 1549: 719283
+Vertex 1166: 637643
+Vertex 766: 610759
+Vertex 15: 509771
+Vertex 1374: 481392
+Vertex 2237: 390004
+Vertex 1151: 359944
+Vertex 2688: 324125
+Vertex 2328: 322901
+Vertex 2470: 298823
+Vertex 737: 280109
+Vertex 5524: 261900
+Vertex 3352: 259205
+Vertex 1186: 253139
+Vertex 72: 248580
+Vertex 5079: 242407
+Peak memory usage: 17504MB
