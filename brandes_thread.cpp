@@ -2,17 +2,16 @@
 #include <atomic>
 #include <chrono>
 #include <fstream>
-#include <sstream>
 #include <iostream>
 #include <mutex>
+#include <queue>
+#include <set>
+#include <sstream>
+#include <stack>
 #include <sys/resource.h>
 #include <thread>
 #include <utility>
 #include <vector>
-#include <stack>
-#include <queue>
-#include <set>
-#include <unordered_set>
 
 using namespace std;
 
@@ -27,7 +26,7 @@ class Centrality {
     // Constructor to initialize the graph's size
     Centrality(int v) : vertices(v), adj(v), centrality(v, 0.0) {}
 
-    // Adds an edge for an UNDIRECTED graph
+    // Adds an edge for an undirected graph
     void addEdge(int u, int v) {
         adj[u].push_back(v);
         adj[v].push_back(u);
@@ -66,9 +65,10 @@ class Centrality {
                 d[s] = 0;
                 Q.push(s);
 
-                // 2. BFS to find shortest paths
-                while (!Q.empty()) { 
-                    int v = Q.front(); Q.pop();
+                // BFS to find shortest paths
+                while (!Q.empty()) {
+                    int v = Q.front();
+                    Q.pop();
                     S.push(v);
 
                     for (int w : adj[v]) {
@@ -85,9 +85,10 @@ class Centrality {
                     }
                 }
 
-                // 3. Dependency accumulation
+                // Dependency accumulation
                 while (!S.empty()) {
-                    int w = S.top(); S.pop();
+                    int w = S.top();
+                    S.pop();
                     for (int v : P[w]) {
                         delta[v] += (sigma[v] / sigma[w]) * (1.0 + delta[w]);
                     }
@@ -124,7 +125,7 @@ class Centrality {
             t.join();
         }
 
-        // 4. Undirected Graph Correction
+        // Undirected graph correction
         // In an undirected graph, the algorithm counts every shortest path twice
         // (once from s to t, and once from t to s). We must halve the final scores.
         for (int i = 0; i < vertices; i++) {
@@ -132,7 +133,7 @@ class Centrality {
         }
     }
 
-    // A quick helper function to print the results
+    // helper function to print the results
     void printCentrality() const {
         cout << "Betweenness Centrality Scores:" << endl;
         vector<pair<double, int>> sorted_centrality;
@@ -168,8 +169,10 @@ Centrality* loadGraph(const string& filename) {
 
         stringstream ss(line);
         if (ss >> u >> v) {
-            if (u == v) continue;
-            if (u > v) swap(u, v); // Normalize to ensure undirected uniqueness
+            if (u == v)
+                continue;
+            if (u > v)
+                swap(u, v); // Normalize to ensure undirected uniqueness
             unique_edges.insert({u, v});
             maxV = max({u, v, maxV});
         }
